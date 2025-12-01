@@ -140,7 +140,7 @@ def train_baselines(config_path: str = "configs/baseline_config.yaml"):
     print("Training LightGBM...")
     print("=" * 60)
     lgb_model = LightGBMBaseline(**config['models']['lightgbm'])
-    lgb_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+    lgb_model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
     lgb_proba = lgb_model.predict_proba(X_test)[:, 1]
     lgb_metrics = compute_all_metrics(y_test, lgb_proba)
     lgb_ops = compute_operational_metrics(y_test, (lgb_proba >= lgb_metrics['optimal_threshold']).astype(int))
@@ -161,7 +161,7 @@ def train_baselines(config_path: str = "configs/baseline_config.yaml"):
     # Calculate class weights
     n_pos = np.sum(y_train == 1)
     n_neg = np.sum(y_train == 0)
-    pos_weight = torch.tensor([n_neg / n_pos if n_pos > 0 else 1.0]).to(device)
+    pos_weight = torch.tensor([n_neg / n_pos if n_pos > 0 else 1.0], dtype=torch.float32).to(device)
     
     loss_fn = ClassWeightedBCE(pos_weight=pos_weight)
     optimizer = torch.optim.AdamW(

@@ -43,7 +43,7 @@ training:
 scheduler:
   type: "cosine"  # cosine, step, plateau, onecycle
   T_max: 100
-  eta_min: 1e-6
+  eta_min: 0.000001
 
 callbacks:
   early_stopping:

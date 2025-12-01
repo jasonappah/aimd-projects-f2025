@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import precision_recall_auc_score, roc_auc_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 import xgboost as xgb
 import lightgbm as lgb
 from typing import Optional, Dict, Any
