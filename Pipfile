@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+torch = "*"
+numpy = "*"
+pandas = "*"
+scikit-learn = "*"
+xgboost = "*"
+lightgbm = "*"
+pyyaml = "*"
+tqdm = "*"
+
+[dev-packages]
+pytest = "*"
+black = "*"
+flake8 = "*"
+jupyter = "*"
+matplotlib = "*"
+seaborn = "*"
+
+[requires]
+python_version = "3.9"
+
