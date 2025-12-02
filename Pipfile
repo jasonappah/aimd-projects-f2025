@@ -11,7 +11,10 @@ scikit-learn = "*"
 xgboost = "*"
 lightgbm = "*"
 pyyaml = "*"
+flask = "*"
 tqdm = "*"
+ 
+ 
 
 [dev-packages]
 pytest = "*"
