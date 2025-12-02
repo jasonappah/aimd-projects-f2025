@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Data Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f7f7; }
+        .card { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .alert-high { background-color: #fee2e2; border-color: #ef4444; color: #991b1b; }
+        .alert-medium { background-color: #fffbeb; border-color: #f59e0b; color: #92400e; }
+        .alert-low { background-color: #ecfdf5; border-color: #10b981; color: #065f46; }
+        .gauge-line { transition: stroke-dashoffset 1s ease-in-out; }
+        .hidden-mode { display: none; }
+        /* Simple spinner animation for better UX */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 1rem;
+            height: 1rem;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* New styles for improved button hierarchy */
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.15s;
+        }
+        .btn-primary:hover { background-color: #2563eb; }
+        .btn-secondary {
+            background-color: #f3f4f6;
+            color: #374151;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: 2px solid #d1d5db;
+            transition: all 0.15s;
+        }
+        .btn-secondary:hover { background-color: #e5e7eb; border-color: #9ca3af; }
+        /* Add sliding highlight animation for active input panels */
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .slide-in {
+            animation: slideDown 0.3s ease-out;
+        }
+        .highlight-border {
+            border: 3px solid #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+        }
+        /* New style for input panels */
+        .input-panel-highlight {
+            border: 3px solid #3b82f6 !important;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            animation: slideDown 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div id="user-id-display" class="text-lg font-bold text-gray-700 mb-6">Status: Loading...</div>
+
+        <!-- Mode Controls Panel -->
+        <div class="card bg-indigo-50 p-6 rounded-xl border-2 border-dashed border-indigo-300">
+            <h2 class="text-xl font-bold text-gray-700 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-indigo-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h14a1 1 0 001-1V4a1 1 0 00-1-1H3zm0 13l4.586-4.586a2 2 0 012.828 0L17 14V5H3v11z" clip-rule="evenodd"></path></svg>
+                Data Mode
+            </h2>
+
+            <!-- 1. Patient Lookup UI (Default View) -->
+            <div id="lookup-panel">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input type="number" id="patient-id-input" placeholder="Enter Patient ID (1-5000)" value="1" min="1" max="5000" class="p-3 border border-gray-300 rounded-lg flex-grow max-w-xs">
+                    <button onclick="loadPatientDataFromInput()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150">
+                        View Trends (Historical)
+                    </button>
+                </div>
+                <p id="data-status" class="mt-4 text-sm font-medium text-gray-600">Loading initial dataset...</p>
+                
+                <!-- Make all three buttons blue with white text, always visible -->
+                <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                    <button onclick="openExerciseInput()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 flex-1">
+                        Log Exercise
+                    </button>
+                    <button onclick="openPricksInput()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 flex-1">
+                        Log Pricks
+                    </button>
+                    <button onclick="openBGInput()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 flex-1">
+                        Log Blood Glucose
+                    </button>
+                </div>
+
+                <!-- Add sliding highlight animation to input panels -->
+                <div id="exercise-input-panel" class="hidden-mode mt-4 p-4 bg-white rounded-lg border-2 border-blue-300 slide-in">
+                    <h3 class="font-bold text-gray-800 mb-3">Log Exercise</h3>
+                    <input type="text" id="exercise-type-input" placeholder="Exercise type (e.g., walking, running)" class="p-3 border border-gray-300 rounded-lg w-full mb-3">
+                    <input type="number" id="exercise-duration-input" placeholder="Duration (minutes)" class="p-3 border border-gray-300 rounded-lg w-full mb-3" min="0">
+                    <div class="flex gap-3">
+                        <button onclick="submitExerciseData()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Save
+                        </button>
+                        <button onclick="closeExerciseInput()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+
+                <div id="pricks-input-panel" class="hidden-mode mt-4 p-4 bg-white rounded-lg border-2 border-blue-300 slide-in">
+                    <h3 class="font-bold text-gray-800 mb-3">Log Number of Pricks</h3>
+                    <input type="number" id="pricks-count-input" placeholder="Number of pricks today" class="p-3 border border-gray-300 rounded-lg w-full mb-3" min="0">
+                    <p id="pricks-alert" class="text-sm text-red-600 font-semibold mb-3 hidden-mode">Alert: More than 1 prick detected!</p>
+                    <div class="flex gap-3">
+                        <button onclick="submitPricksData()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Save
+                        </button>
+                        <button onclick="closePricksInput()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+
+                <div id="bg-input-panel" class="hidden-mode mt-4 p-4 bg-white rounded-lg border-2 border-blue-300 slide-in">
+                    <h3 class="font-bold text-gray-800 mb-3">Log Blood Glucose Level</h3>
+                    <input type="number" id="bg-level-input" placeholder="Blood glucose (mg/dL)" class="p-3 border border-gray-300 rounded-lg w-full mb-3" min="40">
+                    <input type="datetime-local" id="bg-timestamp-input" class="p-3 border border-gray-300 rounded-lg w-full mb-3">
+                    <div class="flex gap-3">
+                        <button onclick="submitBGData()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Save
+                        </button>
+                        <button onclick="closeBGInput()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-150">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Live Session Control & Entry UI (Hidden until mode is switched) -->
+            <div id="live-entry-panel" class="hidden-mode">
+                <button onclick="startLiveSession()" id="start-live-button" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 w-full mb-4">
+                    Start Live Tracking Session for Patient <span id="current-patient-id-display">--</span>
+                </button>
+
+                <div id="live-input-fields" class="hidden-mode">
+                    <!-- Prick Validation Panel (Appears only when risk is CRITICAL) -->
+                    <div id="prick-validation-state" class="hidden-mode bg-red-100 p-4 rounded-lg border-2 border-red-500 mb-4">
+                        <p class="text-lg font-bold text-red-700 flex items-center mb-2">
+                            <svg class="w-6 h-6 mr-2 animate-pulse" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                            CRITICAL ALERT: PRICK TEST REQUIRED!
+                        </p>
+                        <p class="text-sm text-red-900 mb-3">Our model predicts high risk of hypoglycemia. Please check your blood glucose now to confirm.</p>
+                        <input type="number" id="validation-bg-input" placeholder="Enter your BG reading (mg/dL)" class="p-3 border-2 border-red-500 rounded-lg w-full mb-3" min="40">
+                        <button onclick="validatePrick()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 w-full">
+                            Submit BG Reading
+                        </button>
+                    </div>
+
+                    <!-- Action Logging Panel (Visible when tracking, hidden during prick request) -->
+                    <div id="action-logging-state">
+                        <!-- Simplified main instruction text -->
+                        <p class="text-sm font-semibold text-gray-700 mb-3">Enter blood glucose or log an activity:</p>
+                        
+                        <!-- Always-visible BG input at the top -->
+                        <div class="bg-white p-4 rounded-lg border-2 border-blue-200 mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Blood Glucose Reading</label>
+                            <input type="number" id="input-glucose" placeholder="Enter BG (mg/dL)" class="p-3 border-2 border-gray-300 rounded-lg w-full text-lg" min="40">
+                            <p class="text-xs text-gray-500 mt-2" id="bg-hint">Enter your morning reading to start tracking</p>
+                        </div>
+
+                        <!-- Keep original 3-button layout for activities -->
+                        <p class="text-sm font-medium text-gray-600 mb-2">Or log an activity:</p>
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <button onclick="showActivityInput('meal')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-2 rounded-lg transition duration-150 text-sm">
+                                Meal
+                            </button>
+                            <button onclick="showActivityInput('exercise')" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-2 rounded-lg transition duration-150 text-sm">
+                                Exercise
+                            </button>
+                            <button onclick="showActivityInput('manual')" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-2 rounded-lg transition duration-150 text-sm">
+                                Manual Prick
+                            </button>
+                        </div>
+
+                        <!-- Activity-specific inputs panel -->
+                        <div id="activity-inputs-panel" class="hidden-mode bg-gray-50 p-4 rounded-lg border border-gray-300 mb-4">
+                            <p id="activity-title" class="font-semibold text-gray-700 mb-3"></p>
+                            
+                            <!-- Meal inputs -->
+                            <div id="meal-inputs" class="hidden-mode space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Carbs (grams)</label>
+                                    <input type="number" id="input-carbs" placeholder="e.g., 45" value="0" min="0" class="p-3 border border-gray-300 rounded-lg w-full">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Insulin (units) - Optional</label>
+                                    <input type="number" id="input-insulin" placeholder="e.g., 5" value="0" min="0" step="0.1" class="p-3 border border-gray-300 rounded-lg w-full">
+                                </div>
+                            </div>
+
+                            <!-- Exercise confirmation -->
+                            <div id="exercise-inputs" class="hidden-mode">
+                                <p class="text-sm text-gray-600">Exercise activity will be logged with this entry.</p>
+                            </div>
+
+                            <!-- Manual prick note -->
+                            <div id="manual-inputs" class="hidden-mode">
+                                <p class="text-sm text-gray-600">Enter your current blood glucose reading above.</p>
+                            </div>
+
+                            <button onclick="clearActivity()" class="text-sm text-gray-500 hover:text-gray-700 mt-2">
+                                Cancel
+                            </button>
+                        </div>
+
+                        <!-- Submit button -->
+                        <button onclick="logUserEntry()" id="log-entry-button" class="btn-primary w-full flex items-center justify-center">
+                            <span id="log-button-text">Log Entry & Check Risk</span>
+                        </button>
+
+                        <button onclick="endLiveSession()" class="mt-4 text-sm text-red-500 hover:text-red-700">
+                            &larr; End Live Session & Return to Historical View
+                        </button>
+                        <p id="live-session-status" class="mt-2 text-sm font-medium text-gray-600"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Area -->
+        <div class="mt-8 card bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold text-gray-700 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 10a8 8 0 018-8v8H2z"></path><path d="M12 2a8 8 0 00-8 8v8h8V2z"></path></svg>
+                Current Status
+            </h2>
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center">
+                    <div class="relative w-32 h-32">
+                        <svg class="w-full h-full" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="#e0e0e0" stroke-width="10"></circle>
+                            <circle id="gauge-arc" cx="50" cy="50" r="45" fill="none" stroke-width="10" transform="rotate(-90 50 50)" stroke-dasharray="0 100" class="gauge-line"></circle>
+                            <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" class="text-4xl font-bold text-gray-800">
+                                <tspan id="risk-percentage">0%</tspan>
+                            </text>
+                        </svg>
+                    </div>
+                    <div class="ml-6">
+                        <p class="text-5xl font-bold" id="current-glucose">---</p>
+                        <p class="text-sm text-gray-500" id="current-time">--:--:--</p>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <p class="text-lg font-medium text-gray-700">Glucose Trend</p>
+                    <div id="glucose-trend" class="text-3xl font-extrabold my-2">N/A</div>
+                    <p class="text-sm text-gray-500">per hour</p>
+                </div>
+                <div class="w-full sm:w-1/3 text-center">
+                    <p class="text-lg font-medium text-gray-700 mb-2">Recommendation</p>
+                    <div id="recommendation-box" class="p-3 rounded-lg border w-full text-center transition duration-500">
+                        <p id="recommendation-text" class="font-bold">Use the panel above to load data or start tracking.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="demographics" class="mt-8 pt-4 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-medium">
+                <div>Age: <span id="demo-age" class="font-bold text-gray-900">--</span></div>
+                <div>Gender: <span id="demo-gender" class="font-bold text-gray-900">--</span></div>
+                <div>Carbs (g): <span id="demo-carbs" class="font-bold text-gray-900">--</span></div>
+                <div>Insulin (u): <span id="demo-insulin" class="font-bold text-gray-900">--</span></div>
+            </div>
+
+            <div id="activity-log-display" class="mt-6 pt-4 border-t border-gray-200 space-y-2">
+                <p class="text-sm font-medium text-gray-600">Enter Patient ID or start live tracking to see activity logs.</p>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="mt-8 card bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold text-gray-700 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-teal-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v3.586l-1.175-1.175a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L12 11.586V8a1 1 0 00-1.445-.832A5 5 0 009.555 7.168z" clip-rule="evenodd"></path></svg>
+                Glucose Trend Chart
+            </h2>
+            <div class="h-72">
+                <canvas id="glucoseChart"></canvas>
+            </div>
+            <p id="patient-chart-id" class="text-xs text-gray-400 mt-2">Patient ID: --</p>
+        </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let chart;
+        let fullDataset = [];
+        let historicalHistory = [];
+        let liveHistory = [];
+        let currentPatientId = null;
+        let appMode = 'lookup';
+        let currentActivityType = null;
+        let trainingData = [];
+        const CSV_FILE_PATH = 'glucose_timeseries_5000_24h.csv';
+        const MIN_PREDICTION_POINTS = 3;
+        const CRITICAL_RISK_THRESHOLD = 70;
+        const SAFE_BG_THRESHOLD = 80;
+
+        // --- DATALOADING & SETUP ---
+        async function fetchCSV(filePath) {
+            try {
+                document.getElementById('data-status').textContent = 'Fetching data...';
+                const response = await fetch(filePath);
+                if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
+                const csvText = await response.text();
+                return csvText;
+            } catch (error) {
+                console.error("Error fetching CSV:", error);
+                document.getElementById('data-status').textContent = `🚨 Error loading data from ${filePath}. Check console.`;
+                return null;
+            }
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            if (lines.length < 2) return [];
+            const headers = lines[0].split(',').map(h => h.trim());
+
+            const records = lines.slice(1).map(line => {
+                const values = line.split(',').map(v => v.trim());
+                const dataPoint = {};
+                headers.forEach((key, i) => {
+                    const value = values[i] || '';
+                    if (['id', 'age', 'hour', 'glucose_mg_dL', 'carbs_g', 'insulin_units', 'sleep_flag', 'hypo_next_3_hours', 'risk_score', 'pricks_per_day'].includes(key)) {
+                        dataPoint[key] = parseFloat(value) || 0;
+                    } else if (key === 'timestamp') {
+                        dataPoint[key] = new Date(value);
+                    } else {
+                        dataPoint[key] = value;
+                    }
+                });
+                return dataPoint;
+            }).filter(d => d.id > 0 && d.glucose_mg_dL > 0);
+            return records;
+        }
+
+        // --- MODE MANAGEMENT ---
+        function setMode(newMode) {
+            appMode = newMode;
+            const liveEntry = document.getElementById('live-entry-panel');
+            const lookup = document.getElementById('lookup-panel');
+            const startButton = document.getElementById('start-live-button');
+            const actionLogging = document.getElementById('action-logging-state');
+            const prickValidation = document.getElementById('prick-validation-state');
+            
+            // Reset input panels to be hidden and remove highlight/animation classes
+            [
+                document.getElementById('exercise-input-panel'),
+                document.getElementById('pricks-input-panel'),
+                document.getElementById('bg-input-panel'),
+                document.getElementById('activity-inputs-panel')
+            ].forEach(panel => {
+                panel.classList.add('hidden-mode');
+                panel.classList.remove('slide-in', 'highlight-border');
+            });
+
+            prickValidation.classList.add('hidden-mode');
+            
+            document.getElementById('input-carbs').value = 0;
+            document.getElementById('input-insulin').value = 0;
+            document.getElementById('input-glucose').value = '';
+            currentActivityType = null;
+            
+            document.getElementById('meal-inputs').classList.add('hidden-mode');
+            document.getElementById('exercise-inputs').classList.add('hidden-mode');
+            document.getElementById('manual-inputs').classList.add('hidden-mode');
+
+            if (newMode === 'lookup') {
+                lookup.classList.remove('hidden-mode');
+                liveEntry.classList.add('hidden-mode');
+                document.getElementById('user-id-display').textContent = 'Status: Historical Patient Lookup Mode';
+            } else if (newMode === 'historical') {
+                lookup.classList.remove('hidden-mode');
+                liveEntry.classList.remove('hidden-mode');
+                actionLogging.classList.add('hidden-mode');
+                startButton.classList.remove('hidden-mode');
+                document.getElementById('user-id-display').textContent = `Status: Patient ${currentPatientId} Historical Trends Loaded`;
+                document.getElementById('current-patient-id-display').textContent = currentPatientId;
+            } else if (newMode === 'live') {
+                lookup.classList.add('hidden-mode');
+                liveEntry.classList.remove('hidden-mode');
+                actionLogging.classList.remove('hidden-mode');
+                startButton.classList.add('hidden-mode');
+                document.getElementById('user-id-display').textContent = `Status: Live Tracking Session for Patient ${currentPatientId}`;
+                document.getElementById('log-entry-button').disabled = false;
+                
+                if (liveHistory.length === 0) {
+                    document.getElementById('bg-hint').textContent = '⚠️ Required: Enter your starting blood glucose reading';
+                    document.getElementById('live-session-status').textContent = 'Start by entering your morning blood glucose reading.';
+                } else {
+                    document.getElementById('bg-hint').textContent = 'Leave blank to use last reading (' + liveHistory[liveHistory.length - 1].glucose_mg_dL.toFixed(0) + ' mg/dL)';
+                    document.getElementById('live-session-status').textContent = 'Ready to log. Enter BG if you took a reading, or add activity.';
+                }
+            } else if (newMode === 'awaiting_prick') {
+                lookup.classList.add('hidden-mode');
+                actionLogging.classList.add('hidden-mode');
+                prickValidation.classList.remove('hidden-mode');
+                document.getElementById('user-id-display').textContent = `Status: CRITICAL HYPO RISK - VALIDATION REQUIRED`;
+                document.getElementById('validation-bg-input').value = '';
+            }
+        }
+
+        function loadPatientDataFromInput() {
+            const inputId = document.getElementById('patient-id-input').value;
+            const patientId = parseInt(inputId, 10);
+            if (isNaN(patientId) || patientId <= 0) {
+                document.getElementById('data-status').textContent = "Please enter a valid numeric Patient ID.";
+                return;
+            }
+            loadPatientData(patientId);
+        }
+
+        function loadPatientData(patientId) {
+            if (fullDataset.length === 0) {
+                document.getElementById('data-status').textContent = "Error: Dataset not loaded. Please wait.";
+                return;
+            }
+            const history = fullDataset.filter(d => d.id === patientId);
+            if (history.length === 0) {
+                document.getElementById('data-status').textContent = `Patient ID ${patientId} not found.`;
+                updateDashboard([]);
+                return;
+            }
+
+            history.sort((a, b) => a.timestamp - b.timestamp);
+            historicalHistory = history;
+            currentPatientId = patientId;
+            document.getElementById('data-status').textContent = `✅ Loaded ${history.length} records for Patient ID ${patientId}. Ready for Live Tracking.`;
+            setMode('historical');
+            updateDashboard(historicalHistory);
+        }
+
+        function startLiveSession() {
+            liveHistory = JSON.parse(JSON.stringify(historicalHistory));
+            setMode('live');
+            updateDashboard(liveHistory);
+        }
+
+        function endLiveSession() {
+            liveHistory = [];
+            setMode('historical');
+            updateDashboard(historicalHistory);
+            document.getElementById('data-status').textContent = `Live session ended. Viewing historical data for Patient ${currentPatientId}.`;
+        }
+
+        // --- SIMPLIFIED ACTIVITY SELECTION ---
+        function showActivityInput(type) {
+            currentActivityType = type;
+            const panel = document.getElementById('activity-inputs-panel');
+            const mealInputs = document.getElementById('meal-inputs');
+            const exerciseInputs = document.getElementById('exercise-inputs');
+            const manualInputs = document.getElementById('manual-inputs');
+            const title = document.getElementById('activity-title');
+
+            // Hide all input sections first
+            mealInputs.classList.add('hidden-mode');
+            exerciseInputs.classList.add('hidden-mode');
+            manualInputs.classList.add('hidden-mode');
+
+            // Show panel and configure based on type
+            panel.classList.remove('hidden-mode');
+            panel.classList.add('slide-in', 'highlight-border'); // Add animation and highlight
+
+            if (type === 'meal') {
+                title.textContent = 'Log Meal';
+                mealInputs.classList.remove('hidden-mode');
+            } else if (type === 'exercise') {
+                title.textContent = 'Log Exercise';
+                exerciseInputs.classList.remove('hidden-mode');
+            } else if (type === 'manual') {
+                title.textContent = 'Manual Blood Glucose Check';
+                manualInputs.classList.remove('hidden-mode');
+            }
+        }
+
+        function clearActivity() {
+            currentActivityType = null;
+            document.getElementById('activity-inputs-panel').classList.add('hidden-mode');
+            document.getElementById('activity-inputs-panel').classList.remove('slide-in', 'highlight-border'); // Remove animation/highlight
+            document.getElementById('input-carbs').value = 0;
+            document.getElementById('input-insulin').value = 0;
+        }
+
+        // --- IMPROVED PRICK VALIDATION with better messages ---
+        function requestPrickTest(riskScore) {
+            setMode('awaiting_prick');
+            document.getElementById('log-entry-button').disabled = true;
+            document.getElementById('live-session-status').textContent = `High Risk Detected (${riskScore}%): Validation required.`;
+        }
+
+        function validatePrick() {
+            const validationInput = document.getElementById('validation-bg-input');
+            const bg = parseFloat(validationInput.value);
+            const statusElement = document.getElementById('live-session-status');
+
+            if (isNaN(bg) || bg < 40) {
+                statusElement.textContent = 'Please enter a valid BG reading.';
+                return;
+            }
+
+            const newEntry = {
+                id: currentPatientId,
+                timestamp: new Date(),
+                glucose_mg_dL: bg,
+                carbs_g: 0,
+                insulin_units: 0,
+                activity_event: 'prick_validation',
+                sleep_flag: 0
+            };
+            liveHistory.push(newEntry);
+
+            if (bg < 70) {
+                statusElement.innerHTML = `<strong>CONFIRMED LOW!</strong> Your BG is ${bg} mg/dL. Please consume 15-20g of fast-acting carbs (juice, glucose tablets, candy) immediately.`;
+            } else if (bg <= SAFE_BG_THRESHOLD) {
+                statusElement.innerHTML = `Your BG is ${bg} mg/dL - borderline low. Consider a small snack (10-15g carbs) and recheck in 15 minutes.`;
+            } else {
+                statusElement.innerHTML = `<strong>FALSE ALARM</strong> - Your BG is ${bg} mg/dL, which is okay. The model was being cautious. Continue tracking normally.`;
+            }
+
+            setMode('live');
+            updateDashboard(liveHistory);
+            validationInput.value = '';
+        }
+
+        // --- SIMPLIFIED ENTRY LOGGING ---
+        function logUserEntry() {
+            const logButton = document.getElementById('log-entry-button');
+            const logButtonText = document.getElementById('log-button-text');
+            const statusElement = document.getElementById('live-session-status');
+
+            logButton.disabled = true;
+            logButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+            logButtonText.innerHTML = '<div class="spinner"></div> Calculating...';
+            statusElement.innerHTML = '<span class="flex items-center"><div class="spinner"></div>Calculating risk...</span>';
+
+            setTimeout(() => {
+                const bgInput = document.getElementById('input-glucose');
+                const enteredBgValue = bgInput.value.trim();
+                let currentBg;
+                let newTimestamp = new Date();
+
+                if (liveHistory.length === 0) {
+                    // First entry REQUIRES BG
+                    currentBg = parseFloat(enteredBgValue);
+                    if (isNaN(currentBg) || currentBg < 40) {
+                        statusElement.textContent = 'First entry requires a blood glucose reading.';
+                        logButton.disabled = false;
+                        logButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                        logButtonText.textContent = 'Log Entry & Check Risk';
+                        return;
+                    }
+                } else {
+                    if (currentActivityType === 'manual') {
+                        currentBg = parseFloat(enteredBgValue);
+                        if (isNaN(currentBg) || currentBg < 40) {
+                            statusElement.textContent = 'Manual prick requires entering a BG reading.';
+                            logButton.disabled = false;
+                            logButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                            logButtonText.textContent = 'Log Entry & Check Risk';
+                            return;
+                        }
+                    } else {
+                        // Use entered BG or last known BG
+                        if (enteredBgValue && !isNaN(parseFloat(enteredBgValue))) {
+                            currentBg = parseFloat(enteredBgValue);
+                        } else {
+                            currentBg = liveHistory[liveHistory.length - 1].glucose_mg_dL;
+                        }
+                    }
+
+                    // Ensure timestamp is unique
+                    const lastEntry = liveHistory[liveHistory.length - 1];
+                    if (newTimestamp.getTime() <= lastEntry.timestamp.getTime()) {
+                        newTimestamp.setTime(lastEntry.timestamp.getTime() + 1000);
+                    }
+                }
+
+                let carbs = 0;
+                let insulin = 0;
+                let activityEvent = 'none';
+
+                if (currentActivityType === 'meal') {
+                    carbs = parseFloat(document.getElementById('input-carbs').value) || 0;
+                    insulin = parseFloat(document.getElementById('input-insulin').value) || 0;
+                    activityEvent = 'meal';
+                } else if (currentActivityType === 'exercise') {
+                    activityEvent = 'exercise';
+                }
+
+                // Create new entry
+                const newEntry = {
+                    id: currentPatientId,
+                    timestamp: newTimestamp,
+                    glucose_mg_dL: currentBg,
+                    carbs_g: carbs,
+                    insulin_units: insulin,
+                    activity_event: activityEvent,
+                    sleep_flag: 0,
+                    pricks_per_day: (liveHistory.length > 0 && liveHistory[liveHistory.length -1].pricks_per_day) ? liveHistory[liveHistory.length -1].pricks_per_day : 1 // Carry over pricks data if available, default to 1
+                };
+                liveHistory.push(newEntry);
+
+                const currentRisk = calculateRisk(liveHistory);
+
+                if (currentRisk >= CRITICAL_RISK_THRESHOLD) {
+                    requestPrickTest(currentRisk);
+                    return;
+                }
+
+                // Update dashboard
+                updateDashboard(liveHistory);
+                
+                document.getElementById('input-glucose').value = '';
+                document.getElementById('input-carbs').value = 0;
+                document.getElementById('input-insulin').value = 0;
+                document.getElementById('activity-inputs-panel').classList.add('hidden-mode');
+                document.getElementById('activity-inputs-panel').classList.remove('slide-in', 'highlight-border'); // Remove animation/highlight
+                currentActivityType = null;
+                
+                // Update hint for next entry
+                document.getElementById('bg-hint').textContent = 'Leave blank to use last reading (' + currentBg.toFixed(0) + ' mg/dL)';
+
+                statusElement.textContent = `Entry logged at BG ${currentBg.toFixed(0)} mg/dL. Risk: ${currentRisk}%`;
+                logButton.disabled = false;
+                logButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                logButtonText.textContent = 'Log Entry & Check Risk';
+            }, 100);
+        }
+
+
+        function calculateRisk(history) {
+            if (history.length < MIN_PREDICTION_POINTS) return 0;
+
+            history.sort((a, b) => a.timestamp - b.timestamp);
+            const latestData = history[history.length - 1];
+            const priorData = history.length >= MIN_PREDICTION_POINTS ? history[history.length - MIN_PREDICTION_POINTS] : history[0]; // Fallback to first data if not enough points
+
+            if (!priorData) return 0;
+
+            const latestGlucose = latestData.glucose_mg_dL;
+            const priorGlucose = priorData.glucose_mg_dL;
+            const timeDiffMs = latestData.timestamp.getTime() - priorData.timestamp.getTime();
+            const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+
+            const roc = (latestGlucose - priorGlucose) / (timeDiffHours || 0.000277);
+
+            let levelPenalty = (latestGlucose < 100) ? (100 - latestGlucose) : 0;
+            let trendPenalty = (roc < 0) ? (Math.abs(roc) * 7) : 0;
+            let actionPenalty = 0;
+
+            if (latestData.insulin_units > 4 && latestData.carbs_g < 10) {
+                actionPenalty += 25;
+            }
+            if (latestData.activity_event === 'sleep' && latestGlucose < 130) {
+                actionPenalty += 10;
+            }
+            if (latestData.activity_event === 'exercise' && latestGlucose < 100) {
+                actionPenalty += 15;
+            }
+
+            // Add penalty if pricks per day exceeds 1 (indicates increased monitoring need)
+            if (latestData.pricks_per_day && latestData.pricks_per_day > 1) {
+                actionPenalty += (latestData.pricks_per_day - 1) * 8;
+            }
+
+            let rawRisk = (levelPenalty * 1.5) + (trendPenalty * 2.5) + actionPenalty;
+            let risk = Math.min(100, Math.max(0, rawRisk * 0.7));
+
+            return Math.round(risk);
+        }
+        // </CHANGE>
+
+        function getRecommendation(risk) {
+            const box = document.getElementById('recommendation-box');
+            box.className = 'p-3 rounded-lg border w-full text-center transition duration-500'; // Reset classes
+            if (risk >= 70) {
+                box.classList.add('alert-high');
+                return "CRITICAL: Take 15-20g fast carbs NOW.";
+            } else if (risk >= 40) {
+                box.classList.add('alert-medium');
+                return "HIGH RISK: Recheck BG in 30 min.";
+            } else if (risk >= 15) {
+                box.classList.add('alert-medium', 'border-yellow-400');
+                return "MODERATE: Monitor closely.";
+            } else {
+                box.classList.add('alert-low');
+                return "LOW RISK: Trend is stable.";
+            }
+        }
+
+
+        function updateDashboard(history) {
+            const displayHistory = history.length > 0 ? history : historicalHistory;
+            const latestData = displayHistory.length > 0 ? displayHistory[displayHistory.length - 1] : null;
+
+            if (displayHistory.length === 0) {
+                if(chart) chart.destroy(); chart = null;
+                document.getElementById('risk-percentage').textContent = '—%';
+                document.getElementById('current-glucose').textContent = '---';
+                document.getElementById('current-time').textContent = '---';
+                document.getElementById('glucose-trend').innerHTML = 'N/A';
+                document.getElementById('recommendation-text').textContent = 'Use the panel above to load data or start tracking.';
+                updateDemographics(null);
+                updateActivityLogDisplay([]);
+                return;
+            }
+
+            const risk = calculateRisk(history);
+            const recommendation = getRecommendation(risk);
+
+            const gaugeArc = document.getElementById('gauge-arc');
+            document.getElementById('risk-percentage').textContent = `${risk}%`;
+            gaugeArc.style.strokeDasharray = `${risk} 100`;
+            let colorClass = (risk >= 70) ? 'text-red-600' : (risk >= 40) ? 'text-orange-500' : (risk >= 15) ? 'text-yellow-500' : 'text-green-500';
+            gaugeArc.classList.value = `gauge-line ${colorClass}`; // Reset class and apply new color
+
+            document.getElementById('current-glucose').textContent = latestData.glucose_mg_dL.toFixed(0);
+            document.getElementById('current-time').textContent = latestData.timestamp.toLocaleTimeString();
+            document.getElementById('recommendation-text').textContent = recommendation;
+            document.getElementById('patient-chart-id').textContent = latestData.id;
+
+            if (history.length >= MIN_PREDICTION_POINTS) {
+                const latestGlucose = latestData.glucose_mg_dL;
+                const priorGlucose = history[history.length - MIN_PREDICTION_POINTS].glucose_mg_dL;
+                const timeDiffMs = latestData.timestamp.getTime() - history[history.length - MIN_PREDICTION_POINTS].timestamp.getTime();
+                const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+
+                const roc = (latestGlucose - priorGlucose) / (timeDiffHours || 1);
+
+                let trendText = 'Stable'; let trendIcon = '—'; let trendColor = 'text-gray-500';
+                if (roc > 5) { trendText = `${roc.toFixed(1)} Rising/h`; trendIcon = '▲'; trendColor = 'text-green-600'; }
+                else if (roc < -5) { trendText = `${Math.abs(roc).toFixed(1)} Dropping/h`; trendIcon = '▼'; trendColor = 'text-red-600'; }
+                const trendElement = document.getElementById('glucose-trend');
+                trendElement.innerHTML = `<span class="${trendColor} text-2xl mr-2">${trendIcon}</span> ${trendText}`;
+            } else {
+                document.getElementById('glucose-trend').innerHTML = 'N/A (Need 3 entries)';
+            }
+
+            updateDemographics(latestData);
+            updateActivityLogDisplay(history);
+            updateChart(history);
+        }
+
+        function updateDemographics(data) {
+            if (!data && historicalHistory.length > 0) {
+                data = historicalHistory[historicalHistory.length - 1];
+            } else if (!data) {
+                document.getElementById('demographics').innerHTML = `
+                    <div>Age: <span id="demo-age" class="font-bold text-gray-900">--</span></div>
+                    <div>Gender: <span id="demo-gender" class="font-bold text-gray-900">--</span></div>
+                    <div>Carbs (g): <span id="demo-carbs" class="font-bold text-gray-900">--</span></div>
+                    <div>Insulin (u): <span id="demo-insulin" class="font-bold text-gray-900">--</span></div>
+                `;
+                return;
+            }
+            document.getElementById('demo-age').textContent = data.age || '--';
+            document.getElementById('demo-gender').textContent = data.gender || '--';
+            document.getElementById('demo-carbs').textContent = data.carbs_g.toFixed(1) || '0';
+            document.getElementById('demo-insulin').textContent = data.insulin_units.toFixed(2) || '0';
+
+            const currentActivity = data.activity_event.toUpperCase() || 'NONE';
+            document.getElementById('activity-log-display').innerHTML = `
+                <p class="text-sm font-semibold">Latest Activity Logged:</p>
+                <div class="grid grid-cols-2 gap-4 text-sm font-medium text-gray-700">
+                    <div>Activity: <span class="font-bold text-gray-900">${currentActivity}</span></div>
+                    <div>Sleeping: <span class="font-bold text-gray-900">${data.sleep_flag === 1 ? 'YES' : 'NO'}</span></div>
+                </div>
+            `;
+        }
+
+        function updateActivityLogDisplay(history) {
+            const logDisplay = document.getElementById('activity-log-display');
+
+            if (appMode === 'historical') {
+                logDisplay.innerHTML = `<p class="text-gray-500">Showing full historical trend chart below.</p>`;
+                return;
+            }
+            logDisplay.innerHTML = '';
+
+            history.slice(-5).reverse().forEach((entry, index) => {
+                const entryRisk = calculateRisk(history.slice(0, history.length - index));
+                let riskText = entryRisk > 40 ? `<span class="font-bold text-red-600">HIGH RISK (${entryRisk}%)</span>` : `<span class="font-bold text-green-600">LOW RISK (${entryRisk}%)</span>`;
+
+                let logEntry = document.createElement('p');
+                logEntry.className = 'p-2 bg-gray-50 rounded-lg flex justify-between';
+                logEntry.innerHTML = `
+                    <span class="font-semibold">${entry.timestamp.toLocaleTimeString()}</span>
+                    <span>BG: ${entry.glucose_mg_dL.toFixed(0)} | Carbs: ${entry.carbs_g}g | Insulin: ${entry.insulin_units.toFixed(1)}u</span>
+                    ${riskText}
+                `;
+                logDisplay.appendChild(logEntry);
+            });
+        }
+
+        function updateChart(history) {
+            const chartData = history.slice(-24);
+            const labels = chartData.map(d =>
+                d.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            );
+            const data = chartData.map(d => d.glucose_mg_dL);
+            const ctx = document.getElementById('glucoseChart').getContext('2d');
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = data;
+                chart.update();
+                return;
+            }
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Glucose (mg/dL)',
+                        data: data,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.3,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#2563eb'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 40, max: 200,
+                            title: { display: true, text: 'Glucose (mg/dL)' },
+                            ticks: { callback: (value) => value + ' mg/dL' },
+                            afterBuildTicks: (axis) => {
+                                axis.ticks.push({ value: 70, label: 'HYPO (70)' });
+                                axis.ticks.push({ value: 180, label: 'HIGH (180)' });
+                                return axis.ticks;
+                            },
+                            grid: {
+                                color: (context) => (context.tick.value === 70) ? '#ef4444' : (context.tick.value === 180) ? '#f59e0b' : '#e5e7eb',
+                                lineWidth: (context) => (context.tick.value === 70 || context.tick.value === 180) ? 2 : 1,
+                            }
+                        },
+                        x: {
+                            title: { display: true, text: 'Time' },
+                            border: { display: false }
+                        }
+                    },
+                    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }
+                }
+            });
+        }
+
+        // --- APP INITIALIZATION ---
+
+        async function initializeApp() {
+            const csvText = await fetchCSV(CSV_FILE_PATH);
+
+            if (csvText) {
+                fullDataset = parseCSV(csvText);
+                const totalPatients = new Set(fullDataset.map(d => d.id)).size;
+                document.getElementById('data-status').textContent = `✅ Loaded ${fullDataset.length} records across ${totalPatients} patients. Enter ID to view trends.`;
+                setMode('lookup');
+            } else {
+                setMode('lookup');
+                document.getElementById('data-status').textContent = '🚨 Historical data could not be loaded. Only manual live entries are possible.';
+            }
+            updateDashboard([]);
+        }
+
+        // Exercise Input Functions
+        function openExerciseInput() {
+            closeAllInputs();
+            const panel = document.getElementById('exercise-input-panel');
+            panel.classList.remove('hidden-mode');
+            panel.classList.add('input-panel-highlight');
+            document.getElementById('exercise-type-input').focus();
+        }
+
+        function closeExerciseInput() {
+            const panel = document.getElementById('exercise-input-panel');
+            panel.classList.add('hidden-mode');
+            panel.classList.remove('input-panel-highlight');
+            document.getElementById('exercise-type-input').value = '';
+            document.getElementById('exercise-duration-input').value = '';
+        }
+
+        function submitExerciseData() {
+            const exerciseType = document.getElementById('exercise-type-input').value.trim();
+            const duration = parseFloat(document.getElementById('exercise-duration-input').value);
+
+            if (!exerciseType || isNaN(duration) || duration <= 0) {
+                alert('Please enter valid exercise type and duration');
+                return;
+            }
+
+            const exerciseData = {
+                timestamp: new Date(),
+                patientId: currentPatientId,
+                type: 'exercise',
+                exerciseType: exerciseType,
+                duration: duration
+            };
+            trainingData.push(exerciseData);
+            
+            console.log('[v0] Exercise data logged:', exerciseData);
+            console.log('[v0] Training data total records:', trainingData.length);
+            
+            // If in live mode, create new entry with exercise activity
+            if (appMode === 'live' && currentPatientId) {
+                const lastBG = liveHistory.length > 0 ? liveHistory[liveHistory.length - 1].glucose_mg_dL : 120;
+                const newEntry = {
+                    id: currentPatientId,
+                    timestamp: new Date(),
+                    glucose_mg_dL: lastBG,
+                    carbs_g: 0,
+                    insulin_units: 0,
+                    activity_event: 'exercise',
+                    sleep_flag: 0,
+                    pricks_per_day: 0,
+                    exercise_type: exerciseType,
+                    exercise_duration: duration
+                };
+                liveHistory.push(newEntry);
+                
+                // Calculate and display risk immediately
+                const risk = calculateRisk(liveHistory);
+                updateDashboard(liveHistory);
+                
+                console.log('[v0] Risk calculated after exercise:', risk);
+                document.getElementById('live-session-status').textContent = 
+                    `Exercise logged: ${exerciseType} (${duration}min). Current Risk: ${risk}%`;
+            } else {
+                alert(`Exercise logged: ${exerciseType} for ${duration} minutes`);
+            }
+
+            document.getElementById('exercise-type-input').value = '';
+            document.getElementById('exercise-duration-input').value = '';
+            closeExerciseInput();
+        }
+
+        // Pricks Input Functions
+        function openPricksInput() {
+            closeAllInputs();
+            const panel = document.getElementById('pricks-input-panel');
+            panel.classList.remove('hidden-mode');
+            panel.classList.add('input-panel-highlight');
+            document.getElementById('pricks-count-input').focus();
+        }
+
+        function closePricksInput() {
+            const panel = document.getElementById('pricks-input-panel');
+            panel.classList.add('hidden-mode');
+            panel.classList.remove('input-panel-highlight');
+            document.getElementById('pricks-count-input').value = '';
+            document.getElementById('pricks-alert').classList.add('hidden-mode');
+        }
+
+        function submitPricksData() {
+            const pricksCount = parseInt(document.getElementById('pricks-count-input').value);
+
+            if (isNaN(pricksCount) || pricksCount < 0) {
+                alert('Please enter a valid number of pricks');
+                return;
+            }
+
+            const pricksData = {
+                timestamp: new Date(),
+                patientId: currentPatientId,
+                type: 'pricks',
+                count: pricksCount,
+                pricks_per_day: pricksCount
+            };
+            trainingData.push(pricksData);
+            
+            console.log('[v0] Pricks data logged:', pricksData);
+            console.log('[v0] Training data total records:', trainingData.length);
+
+            // Update all live history entries with this pricks count
+            if (appMode === 'live' && liveHistory.length > 0) {
+                liveHistory.forEach(entry => {
+                    entry.pricks_per_day = pricksCount;
+                });
+                
+                // Calculate and display risk immediately
+                const risk = calculateRisk(liveHistory);
+                updateDashboard(liveHistory);
+                
+                console.log('[v0] Risk calculated after pricks update:', risk);
+                document.getElementById('live-session-status').textContent = 
+                    `Pricks logged: ${pricksCount}. Current Risk: ${risk}%`;
+            }
+
+            if (pricksCount > 1) {
+                document.getElementById('pricks-alert').classList.remove('hidden-mode');
+                setTimeout(() => {
+                    alert(`WARNING: ${pricksCount} pricks detected today. Try to rely on activity tracking to reduce prick frequency.`);
+                }, 100);
+            } else {
+                alert(`Pricks logged: ${pricksCount}`);
+            }
+
+            document.getElementById('pricks-count-input').value = '';
+            closePricksInput();
+        }
+
+        // Blood Glucose Input Functions
+        function openBGInput() {
+            closeAllInputs();
+            const panel = document.getElementById('bg-input-panel');
+            panel.classList.remove('hidden-mode');
+            panel.classList.add('input-panel-highlight');
+            document.getElementById('bg-level-input').focus();
+            
+            // Set current timestamp
+            const now = new Date();
+            const localDateTime = now.toISOString().slice(0, 16);
+            document.getElementById('bg-timestamp-input').value = localDateTime;
+        }
+
+        function closeBGInput() {
+            const panel = document.getElementById('bg-input-panel');
+            panel.classList.add('hidden-mode');
+            panel.classList.remove('input-panel-highlight');
+            document.getElementById('bg-level-input').value = '';
+            document.getElementById('bg-timestamp-input').value = '';
+        }
+
+        function submitBGData() {
+            const bgLevel = parseFloat(document.getElementById('bg-level-input').value);
+            const timestampStr = document.getElementById('bg-timestamp-input').value;
+            const timestamp = new Date(timestampStr);
+
+            if (isNaN(bgLevel) || bgLevel < 40) {
+                alert('Please enter a valid blood glucose level (minimum 40 mg/dL)');
+                return;
+            }
+            if (!timestampStr) {
+                alert('Please select a timestamp');
+                return;
+            }
+
+            const bgData = {
+                timestamp: timestamp,
+                patientId: currentPatientId,
+                type: 'blood_glucose',
+                glucose_mg_dL: bgLevel
+            };
+            trainingData.push(bgData);
+            
+            console.log('[v0] Blood glucose data logged:', bgData);
+            console.log('[v0] Training data total records:', trainingData.length);
+
+            // If in live mode, create new entry with BG reading
+            if (appMode === 'live' && currentPatientId) {
+                const newEntry = {
+                    id: currentPatientId,
+                    timestamp: timestamp,
+                    glucose_mg_dL: bgLevel,
+                    carbs_g: 0,
+                    insulin_units: 0,
+                    activity_event: 'manual_bg_check',
+                    sleep_flag: 0,
+                    pricks_per_day: 1
+                };
+                liveHistory.push(newEntry);
+                
+                // Calculate and display risk immediately
+                const risk = calculateRisk(liveHistory);
+                updateDashboard(liveHistory);
+                
+                const riskLevel = risk >= 70 ? 'CRITICAL' : risk >= 40 ? 'HIGH' : risk >= 15 ? 'MODERATE' : 'LOW';
+                console.log('[v0] Risk calculated after BG entry:', risk, 'Level:', riskLevel);
+                document.getElementById('live-session-status').textContent = 
+                    `BG logged: ${bgLevel} mg/dL. Risk Level: ${riskLevel} (${risk}%)`;
+            } else {
+                alert(`Blood glucose logged: ${bgLevel} mg/dL`);
+            }
+
+            document.getElementById('bg-level-input').value = '';
+            document.getElementById('bg-timestamp-input').value = '';
+            closeBGInput();
+        }
+
+        function closeAllInputs() {
+            closeExerciseInput();
+            closePricksInput();
+            closeBGInput();
+        }
+
+    </script>
+</body>
+</html>
