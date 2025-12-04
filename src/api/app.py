@@ -12,7 +12,7 @@ from src.utils.alerts import trigger_emergency_call
 
 # --- Initialization & Constants ---
 app = FastAPI(
-    title="Blood Sugar Prediction API",
+    title="GlycoCare - Blood Sugar Prediction API",
     description="Backend for LLM-powered blood glucose prediction and critical risk assessment.",
     version="1.0.0"
 )
