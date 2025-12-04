@@ -5,6 +5,12 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import appCss from '../styles.css?url'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+/*
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hubot+Sans:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
+*/
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -23,6 +29,18 @@ export const Route = createRootRoute({
       {
         rel: 'stylesheet',
         href: appCss,
+      },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.googleapis.com',
+      },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+      },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Hubot+Sans:ital,wght@0,200..900;1,200..900&display=swap',
       },
     ],
   }),
