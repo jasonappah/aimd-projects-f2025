@@ -98,7 +98,7 @@ def evaluate_test(model, dataloader, device):
             
             outputs = model(features)
             all_predictions.append(outputs.cpu().numpy())
-            all_targets.append(targets.numpy())
+            all_targets.append(targets.cpu().numpy())
     
     all_predictions = np.concatenate(all_predictions, axis=0).flatten()
     all_targets = np.concatenate(all_targets, axis=0).flatten()
@@ -212,7 +212,7 @@ def main():
     
     # Learning rate scheduler
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=5, verbose=True
+        optimizer, mode='min', factor=0.5, patience=5
     )
     
     # Training loop
@@ -288,7 +288,7 @@ def main():
     
     # Load best model and evaluate on test set
     print("\nLoading best model for test evaluation...")
-    checkpoint = torch.load(os.path.join(args.checkpoint_dir, 'best_model.pth'))
+    checkpoint = torch.load(os.path.join(args.checkpoint_dir, 'best_model.pth'), weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     
     print("Evaluating on test set...")
