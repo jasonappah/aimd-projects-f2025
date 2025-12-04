@@ -2,7 +2,11 @@ import numpy as np
 import pickle
 import torch
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import os
+
+from dotenv import load_dotenv
+load_dotenv()
 
 # Local imports for core logic and schemas
 from src.llm.feature_extractor import extract_features_from_text, StructuredFeatures
@@ -16,6 +20,15 @@ app = FastAPI(
     title="GlycoCare - Blood Sugar Prediction API",
     description="Backend for LLM-powered blood glucose prediction and critical risk assessment.",
     version="1.0.0"
+)
+
+# Add CORS middleware to handle preflight OPTIONS requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend dev server
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods including OPTIONS
+    allow_headers=["*"],  # Allow all headers
 )
 
 # Constants for Critical Alert Thresholds (representing the >75% risk level)
