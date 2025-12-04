@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-# --- Raw Input Schema for FastAPI POST Request ---
+# --- RAW INPUT SCHEMA (For FastAPI POST Request) ---
 class RawInput(BaseModel): 
     """
     Schema for the raw data coming from the Front-End (POST /predict).
@@ -8,10 +8,11 @@ class RawInput(BaseModel):
     current_glucose_mgdl: float
     raw_meal_exercise_text: str
 
-# --- ML Model Input Schema (Extracted by LLM) ---
+# --- ML MODEL INPUT SCHEMA (Extracted by LLM) ---
 class StructuredFeatures(BaseModel):
     """
     Schema for the structured features extracted by the LLM from raw meal/exercise text.
+    Matches the requirements in plan.md: Section 4. LLM Feature Extraction Pipeline.
     """
     # Meal Features
     carbs: float = Field(description="Total carbohydrates in grams (g). Must be non-negative.")
@@ -25,7 +26,8 @@ class StructuredFeatures(BaseModel):
     intensity_level: str = Field(description="Categorical intensity: 'Low', 'Medium', or 'High'.")
     numeric_intensity_factor: float = Field(description="A numerical factor representing intensity (e.g., 0.5 to 1.5).")
 
-# --- Final Output Schema for FastAPI Response ---
+
+# --- FINAL OUTPUT SCHEMA (For FastAPI Response) ---
 class PredictionResult(BaseModel):
     """
     Schema for the final response sent back to the Front-End.

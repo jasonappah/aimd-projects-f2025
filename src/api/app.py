@@ -2,33 +2,51 @@ import numpy as np
 import pandas as pd
 import joblib
 from fastapi import FastAPI
-from typing import Dict, Any
+from typing import Any
+import os
 
-# Assuming these are the locations for your components
+# Local imports for core logic and schemas
 from src.llm.feature_extractor import extract_features_from_text, StructuredFeatures
 from src.llm.schemas import RawInput, PredictionResult
+from src.utils.alerts import trigger_emergency_call
 
-# --- Initialization ---
+# --- Initialization & Constants ---
 app = FastAPI(
     title="Blood Sugar Prediction API",
-    description="Backend for LLM-powered blood glucose prediction and risk assessment.",
+    description="Backend for LLM-powered blood glucose prediction and critical risk assessment.",
     version="1.0.0"
 )
 
-# 1. Load the Trained ML Model (Phase 1)
-# NOTE: Replace 'model.pkl' with your actual saved model file path
+# Constants for Critical Alert Thresholds (representing the >75% risk level)
+CRITICAL_HYPO_THRESHOLD = 50.0  # Below 50 mg/dL: requires immediate attention
+CRITICAL_HYPER_THRESHOLD = 300.0 # Above 300 mg/dL: requires immediate attention
+
+# Load environment variables (runs once at startup)
+CARETAKER_NUMBER = os.getenv("TWILIO_CARETAKER_NUMBER") 
+
+# 1. CONSOLIDATED Model and Preprocessor Loading
+# This block runs once when the application starts
 try:
     ML_MODEL = joblib.load("models/blood_glucose_model.pkl") 
-    print("ML Model loaded successfully.")
-except FileNotFoundError:
-    print("WARNING: ML Model not found. Using a dummy function for prediction.")
+    FEATURE_PREPROCESSOR = joblib.load("models/feature_preprocessor.pkl") 
+    print("ML Model and Preprocessor loaded successfully.")
+except FileNotFoundError as e:
+    # If the model or preprocessor files are missing, the prediction endpoint will use a fallback
+    print(f"WARNING: Required file not found: {e}. ML functionality disabled.")
     ML_MODEL = None
-
+    FEATURE_PREPROCESSOR = None
 
 # --- Helper Functions ---
 
 def run_risk_classifier(predicted_glucose: float) -> tuple[str, str]:
-    """Maps the predicted glucose value to a risk label and explanation (Phase 3 logic)."""
+    """
+    Maps the predicted glucose value to a risk label and explanation.
+
+    Risk thresholds (based on common medical guidelines):
+    Hypo: < 70 mg/dL
+    Normal: 70 - 180 mg/dL
+    Hyper: > 180 mg/dL
+    """
     if predicted_glucose < 70:
         return "Hypo", "Blood sugar is predicted to be low (Hypoglycemia). Seek immediate attention."
     elif predicted_glucose > 180:
@@ -38,18 +56,6 @@ def run_risk_classifier(predicted_glucose: float) -> tuple[str, str]:
     else:
         return "Borderline", "Blood sugar is predicted to be elevated but not yet high."
 
-# 1. Update the ML Model Loading to include a Preprocessor
-try:
-    ML_MODEL = joblib.load("models/blood_glucose_model.pkl") 
-    # YOU MUST TRAIN AND SAVE THIS OBJECT DURING PHASE 1
-    FEATURE_PREPROCESSOR = joblib.load("models/feature_preprocessor.pkl") 
-    print("ML Model and Preprocessor loaded successfully.")
-except FileNotFoundError:
-    print("WARNING: ML Model/Preprocessor not found. Using dummy functions.")
-    ML_MODEL = None
-    FEATURE_PREPROCESSOR = None # Handle this gracefully
-
-# 2. Update the prepare_features_for_ml function
 def prepare_features_for_ml(features: StructuredFeatures, current_glucose: float) -> np.ndarray:
     """
     Converts the StructuredFeatures object into the final, encoded NumPy array 
@@ -58,11 +64,11 @@ def prepare_features_for_ml(features: StructuredFeatures, current_glucose: float
     
     # 1. Collect all features, including current glucose
     data = features.model_dump()
-    # Rename 'current_glucose_mgdl' to 'fasting_glucose' to match the training schema
+    # Rename key for consistency with typical training data
     data['fasting_glucose'] = current_glucose 
     
     # 2. Create a Pandas DataFrame (required for scikit-learn preprocessing)
-    # The columns must match the order and names used during training!
+    # The columns MUST match the order and names used during training!
     feature_df = pd.DataFrame([data])
     
     if FEATURE_PREPROCESSOR:
@@ -70,31 +76,30 @@ def prepare_features_for_ml(features: StructuredFeatures, current_glucose: float
         processed_features = FEATURE_PREPROCESSOR.transform(feature_df)
         return processed_features
     else:
-        # Fallback (e.g., if preprocessor failed to load)
-        # This is a very simple list that will likely fail if the model is complex
+        # Fallback for when the preprocessor is not available
+        # This is a simple, unencoded vector and should only be used in the fallback prediction
         feature_vector = [
             data['fasting_glucose'],
             data['carbs'],
             data['protein'],
             data['fat'],
             data['GI'],
-            # The model will expect ENCODED versions of these next three:
-            # data['exercise_name'], data['minutes'], data['intensity_level'], data['numeric_intensity_factor']
+            data['minutes'], 
+            data['numeric_intensity_factor']
         ]
-        return np.array([feature_vector]) # Returns an unencoded NumPy array
+        return np.array([feature_vector])
 
 
-# --- API Endpoint (Phase 5: Real-Time Prediction Backend) ---
+# --- API Endpoint (The Core Prediction Logic) ---
 
 @app.post("/predict", response_model=PredictionResult)
 def predict_glucose(input_data: RawInput):
     """
-    Takes raw input, uses the LLM to extract features, predicts glucose 
-    using the ML model, and classifies the risk.
+    Primary endpoint: Takes raw input, extracts features via LLM, predicts glucose 
+    via ML model, classifies risk, and triggers emergency alerts if necessary.
     """
     
     # 1. LLM Feature Extraction (Phase 2)
-    # The Pydantic RawInput ensures we have the correct fields.
     extracted_features = extract_features_from_text(input_data.raw_meal_exercise_text)
 
     # 2. Prepare Features for ML
@@ -102,19 +107,31 @@ def predict_glucose(input_data: RawInput):
 
     # 3. ML Prediction (Phase 1)
     if ML_MODEL:
-        # Predict the next_3hr_glucose
+        # Predict the next_3hr_glucose using the loaded model
         prediction = ML_MODEL.predict(ml_input)[0] 
     else:
-        # Fallback if model is not loaded (e.g., during testing)
+        # Fallback if model is not loaded
         prediction = input_data.current_glucose_mgdl + (extracted_features.carbs * 0.5) 
         
+    predicted_glucose = float(prediction)
     
     # 4. Risk Classification (Phase 3)
-    risk_label, explanation = run_risk_classifier(prediction)
+    risk_label, explanation = run_risk_classifier(predicted_glucose)
+    
+    # 5. CRITICAL ALERT CHECK (New Logic)
+    if (predicted_glucose < CRITICAL_HYPO_THRESHOLD or 
+        predicted_glucose > CRITICAL_HYPER_THRESHOLD):
+        
+        if CARETAKER_NUMBER:
+            # Trigger the call with the predicted value
+            trigger_emergency_call(predicted_glucose, CARETAKER_NUMBER)
+            explanation += " CRITICAL ALERT: Emergency call initiated to caretaker."
+        else:
+            print("ALERT: TWILIO_CARETAKER_NUMBER not set. Emergency call skipped.")
 
-    # 5. Return the Result
+    # 6. Return the Result
     return PredictionResult(
-        predicted_glucose_mgdl=round(float(prediction), 2),
+        predicted_glucose_mgdl=round(predicted_glucose, 2),
         risk_label=risk_label,
         explanation=explanation
     )
