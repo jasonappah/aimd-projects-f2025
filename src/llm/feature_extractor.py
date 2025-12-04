@@ -17,16 +17,7 @@ except Exception as e:
 # --- 1. Import or Define the Schema ---
 # Assuming 'StructuredFeatures' is defined in 'src/llm/schemas.py'
 # You must import the exact class used for the ML model's feature set.
-class StructuredFeatures(BaseModel):
-    # NOTE: This definition must be identical to the one in schemas.py
-    carbs: float
-    protein: float
-    fat: float
-    GI: float
-    exercise_name: str
-    minutes: int
-    intensity_level: str
-    numeric_intensity_factor: float
+from .schemas import StructuredFeatures
 # -------------------------------------
 
 

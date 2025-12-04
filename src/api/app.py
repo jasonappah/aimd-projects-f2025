@@ -1,10 +1,12 @@
+import numpy as np
+import pandas as pd
 import joblib
 from fastapi import FastAPI
 from typing import Dict, Any
 
 # Assuming these are the locations for your components
 from src.llm.feature_extractor import extract_features_from_text, StructuredFeatures
-from src.schemas import RawInput, PredictionResult
+from src.llm.schemas import RawInput, PredictionResult
 
 # --- Initialization ---
 app = FastAPI(
@@ -36,31 +38,50 @@ def run_risk_classifier(predicted_glucose: float) -> tuple[str, str]:
     else:
         return "Borderline", "Blood sugar is predicted to be elevated but not yet high."
 
-def prepare_features_for_ml(features: StructuredFeatures, current_glucose: float) -> Any:
+# 1. Update the ML Model Loading to include a Preprocessor
+try:
+    ML_MODEL = joblib.load("models/blood_glucose_model.pkl") 
+    # YOU MUST TRAIN AND SAVE THIS OBJECT DURING PHASE 1
+    FEATURE_PREPROCESSOR = joblib.load("models/feature_preprocessor.pkl") 
+    print("ML Model and Preprocessor loaded successfully.")
+except FileNotFoundError:
+    print("WARNING: ML Model/Preprocessor not found. Using dummy functions.")
+    ML_MODEL = None
+    FEATURE_PREPROCESSOR = None # Handle this gracefully
+
+# 2. Update the prepare_features_for_ml function
+def prepare_features_for_ml(features: StructuredFeatures, current_glucose: float) -> np.ndarray:
     """
-    Converts the StructuredFeatures object into the format expected by the 
-    trained scikit-learn/XGBoost model (e.g., a Pandas DataFrame or numpy array).
+    Converts the StructuredFeatures object into the final, encoded NumPy array 
+    expected by the trained ML model.
     """
-    # NOTE: You must map all fields in the exact order your model was trained on.
-    # This is a placeholder for your actual feature preparation logic.
+    
+    # 1. Collect all features, including current glucose
     data = features.model_dump()
-    data['fasting_glucose'] = current_glucose # Add the current reading as a feature
+    # Rename 'current_glucose_mgdl' to 'fasting_glucose' to match the training schema
+    data['fasting_glucose'] = current_glucose 
     
-    # In a real system, you would handle one-hot encoding for 'exercise_name'
-    # and 'intensity_level' to match the training feature set.
+    # 2. Create a Pandas DataFrame (required for scikit-learn preprocessing)
+    # The columns must match the order and names used during training!
+    feature_df = pd.DataFrame([data])
     
-    # Example: returning a list of values for a simple model expectation
-    feature_vector = [
-        data['fasting_glucose'],
-        data['carbs'],
-        data['protein'],
-        # ... include all other features in correct order
-        data['numeric_intensity_factor']
-    ]
-    
-    # Scikit-learn models typically expect an array-like structure (e.g., [[feature1, feature2, ...]])
-    import numpy as np
-    return np.array([feature_vector])
+    if FEATURE_PREPROCESSOR:
+        # 3. Apply the saved preprocessor to handle one-hot encoding, scaling, etc.
+        processed_features = FEATURE_PREPROCESSOR.transform(feature_df)
+        return processed_features
+    else:
+        # Fallback (e.g., if preprocessor failed to load)
+        # This is a very simple list that will likely fail if the model is complex
+        feature_vector = [
+            data['fasting_glucose'],
+            data['carbs'],
+            data['protein'],
+            data['fat'],
+            data['GI'],
+            # The model will expect ENCODED versions of these next three:
+            # data['exercise_name'], data['minutes'], data['intensity_level'], data['numeric_intensity_factor']
+        ]
+        return np.array([feature_vector]) # Returns an unencoded NumPy array
 
 
 # --- API Endpoint (Phase 5: Real-Time Prediction Backend) ---

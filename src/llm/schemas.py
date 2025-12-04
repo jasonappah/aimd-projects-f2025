@@ -1,11 +1,17 @@
 from pydantic import BaseModel, Field
 
-# Defines the exact structure and data types for the ML model's input
-# This ensures a seamless connection between the LLM and the ML model.
+# --- Raw Input Schema for FastAPI POST Request ---
+class RawInput(BaseModel): 
+    """
+    Schema for the raw data coming from the Front-End (POST /predict).
+    """
+    current_glucose_mgdl: float
+    raw_meal_exercise_text: str
+
+# --- ML Model Input Schema (Extracted by LLM) ---
 class StructuredFeatures(BaseModel):
     """
     Schema for the structured features extracted by the LLM from raw meal/exercise text.
-    Matches the requirements in plan.md: Section 4. LLM Feature Extraction Pipeline.
     """
     # Meal Features
     carbs: float = Field(description="Total carbohydrates in grams (g). Must be non-negative.")
@@ -19,28 +25,11 @@ class StructuredFeatures(BaseModel):
     intensity_level: str = Field(description="Categorical intensity: 'Low', 'Medium', or 'High'.")
     numeric_intensity_factor: float = Field(description="A numerical factor representing intensity (e.g., 0.5 to 1.5).")
 
-# Example of how the data will look after extraction
-# {
-#     "carbs": 55.0,
-#     "protein": 12.0,
-#     "fat": 8.0,
-#     "GI": 60.0,
-#     "exercise_name": "Running",
-#     "minutes": 30,
-#     "intensity_level": "Medium",
-#     "numeric_intensity_factor": 1.0
-# }
-    class RawInput(BaseModel):
-        """
-        Schema for the raw data coming from the Front-End (POST /predict).
-        """
-        current_glucose_mgdl: float
-        raw_meal_exercise_text: str
-
-    class PredictionResult(BaseModel):
-        """
-        Schema for the final response sent back to the Front-End.
-        """
-        predicted_glucose_mgdl: float
-        risk_label: str # e.g., 'Normal', 'Hyper', 'Hypo'
-        explanation: str # Textual explanation for the risk
+# --- Final Output Schema for FastAPI Response ---
+class PredictionResult(BaseModel):
+    """
+    Schema for the final response sent back to the Front-End.
+    """
+    predicted_glucose_mgdl: float
+    risk_label: str # e.g., 'Normal', 'Hyper', 'Hypo'
+    explanation: str # Textual explanation for the risk
