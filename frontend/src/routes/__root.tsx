@@ -4,6 +4,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import appCss from '../styles.css?url'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider } from 'next-themes'
 
 /*
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,14 +54,16 @@ const queryClient = new QueryClient()
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <QueryClientProvider client={queryClient}>
+            {children}
+          </QueryClientProvider>
+        </ThemeProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
