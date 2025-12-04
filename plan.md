@@ -41,3 +41,9 @@ Phase 3: Backend API
 Phase 4: Front-end
 Phase 5: Feedback loop + retraining
 
+--- 
+I. Dev Notes
+
+to run frontend: `cd frontend && pnpm run dev`
+to run backend: `uvicorn src.api.app:app --reload`
+

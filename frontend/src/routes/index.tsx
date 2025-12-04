@@ -1,118 +1,369 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  Zap,
-  Server,
-  Route as RouteIcon,
-  Shield,
-  Waves,
-  Sparkles,
-} from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useMutation } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts'
+import { format } from 'date-fns'
 
-export const Route = createFileRoute('/')({ component: App })
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from '@/components/ui/chart'
+import { predictGlucosePredictPostMutation } from '@/client/@tanstack/react-query.gen'
+import { savePredictionEntry, getPredictionEntries } from '@/lib/storage'
+import type { PredictionEntry } from '@/lib/storage'
+import { AlertCircle } from 'lucide-react'
+
+export const Route = createFileRoute('/')({
+  component: App,
+})
+
+// Form validation schema
+const predictionFormSchema = z.object({
+  current_glucose_mgdl: z
+    .number({
+      required_error: 'Current glucose is required',
+      invalid_type_error: 'Must be a number',
+    })
+    .min(0, 'Glucose must be at least 0')
+    .max(500, 'Glucose must be at most 500'),
+  raw_meal_exercise_text: z
+    .string()
+    .min(1, 'Meal/exercise description is required')
+    .max(1000, 'Description is too long'),
+})
+
+type PredictionFormValues = z.infer<typeof predictionFormSchema>
 
 function App() {
-  const features = [
-    {
-      icon: <Zap className="w-12 h-12 text-cyan-400" />,
-      title: 'Powerful Server Functions',
-      description:
-        'Write server-side code that seamlessly integrates with your client components. Type-safe, secure, and simple.',
+  const [predictionHistory, setPredictionHistory] = useState<PredictionEntry[]>([])
+  const [lastPrediction, setLastPrediction] = useState<PredictionEntry | null>(null)
+
+  // Load history from localStorage on mount
+  useEffect(() => {
+    const entries = getPredictionEntries()
+    setPredictionHistory(entries)
+    if (entries.length > 0) {
+      setLastPrediction(entries[0])
+    }
+  }, [])
+
+  const form = useForm<PredictionFormValues>({
+    resolver: zodResolver(predictionFormSchema),
+    defaultValues: {
+      current_glucose_mgdl: undefined,
+      raw_meal_exercise_text: '',
     },
-    {
-      icon: <Server className="w-12 h-12 text-cyan-400" />,
-      title: 'Flexible Server Side Rendering',
-      description:
-        'Full-document SSR, streaming, and progressive enhancement out of the box. Control exactly what renders where.',
+  })
+
+  const mutation = useMutation({
+    ...predictGlucosePredictPostMutation(),
+    onSuccess: (data) => {
+      const input = form.getValues()
+      // Save to localStorage
+      savePredictionEntry(input, data)
+      // Update state
+      const entries = getPredictionEntries()
+      setPredictionHistory(entries)
+      if (entries.length > 0) {
+        setLastPrediction(entries[0])
+      }
+      // Reset form
+      form.reset({
+        current_glucose_mgdl: undefined,
+        raw_meal_exercise_text: '',
+      })
     },
-    {
-      icon: <RouteIcon className="w-12 h-12 text-cyan-400" />,
-      title: 'API Routes',
-      description:
-        'Build type-safe API endpoints alongside your application. No separate backend needed.',
+  })
+
+  const onSubmit = (values: PredictionFormValues) => {
+    mutation.mutate({
+      body: {
+        current_glucose_mgdl: values.current_glucose_mgdl,
+        raw_meal_exercise_text: values.raw_meal_exercise_text,
+      },
+    })
+  }
+
+  // Prepare chart data (last 20 entries, reversed for chronological order)
+  const chartData = predictionHistory
+    .slice(0, 20)
+    .reverse()
+    .map((entry) => ({
+      timestamp: format(new Date(entry.timestamp), 'MM/dd HH:mm'),
+      current: entry.input.current_glucose_mgdl,
+      predicted: entry.result.predicted_glucose_mgdl,
+      risk: entry.result.risk_label,
+    }))
+
+  // Get risk badge variant
+  const getRiskBadgeVariant = (riskLabel: string): 'default' | 'destructive' | 'outline' => {
+    switch (riskLabel.toLowerCase()) {
+      case 'hypo':
+      case 'hyper':
+        return 'destructive'
+      case 'borderline':
+        return 'outline'
+      case 'normal':
+        return 'default'
+      default:
+        return 'outline'
+    }
+  }
+
+  // Get risk badge color class
+  const getRiskBadgeColor = (riskLabel: string): string => {
+    switch (riskLabel.toLowerCase()) {
+      case 'hypo':
+        return 'bg-red-500'
+      case 'hyper':
+        return 'bg-red-600'
+      case 'borderline':
+        return 'bg-yellow-500'
+      case 'normal':
+        return 'bg-green-500'
+      default:
+        return ''
+    }
+  }
+
+  const chartConfig = {
+    current: {
+      label: 'Current Glucose',
+      color: 'hsl(var(--chart-1))',
     },
-    {
-      icon: <Shield className="w-12 h-12 text-cyan-400" />,
-      title: 'Strongly Typed Everything',
-      description:
-        'End-to-end type safety from server to client. Catch errors before they reach production.',
+    predicted: {
+      label: 'Predicted Glucose',
+      color: 'hsl(var(--chart-2))',
     },
-    {
-      icon: <Waves className="w-12 h-12 text-cyan-400" />,
-      title: 'Full Streaming Support',
-      description:
-        'Stream data from server to client progressively. Perfect for AI applications and real-time updates.',
-    },
-    {
-      icon: <Sparkles className="w-12 h-12 text-cyan-400" />,
-      title: 'Next Generation Ready',
-      description:
-        'Built from the ground up for modern web applications. Deploy anywhere JavaScript runs.',
-    },
-  ]
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <section className="relative py-20 px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10"></div>
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <img
-              src="/tanstack-circle-logo.png"
-              alt="TanStack Logo"
-              className="w-24 h-24 md:w-32 md:h-32"
-            />
-            <h1 className="text-6xl md:text-7xl font-black text-white [letter-spacing:-0.08em]">
-              <span className="text-gray-300">TANSTACK</span>{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                START
-              </span>
-            </h1>
-          </div>
-          <p className="text-2xl md:text-3xl text-gray-300 mb-4 font-light">
-            The framework for next generation AI applications
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-white mb-2">Blood Sugar Prediction</h1>
+          <p className="text-gray-400">
+            Enter your current glucose level and meal/exercise details to predict your blood sugar
+            levels
           </p>
-          <p className="text-lg text-gray-400 max-w-3xl mx-auto mb-8">
-            Full-stack framework powered by TanStack Router for React and Solid.
-            Build modern applications with server functions, streaming, and type
-            safety.
-          </p>
-          <div className="flex flex-col items-center gap-4">
-            <a
-              href="https://tanstack.com/start"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
-            >
-              Documentation
-            </a>
-            <p className="text-gray-400 text-sm mt-2">
-              Begin your TanStack Start journey by editing{' '}
-              <code className="px-2 py-1 bg-slate-700 rounded text-cyan-400">
-                /src/routes/index.tsx
-              </code>
-            </p>
-          </div>
         </div>
-      </section>
 
-      <section className="py-16 px-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
-            >
-              <div className="mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-white mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-gray-400 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
+        <div className="grid gap-8 md:grid-cols-2">
+          {/* Form Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>New Prediction</CardTitle>
+              <CardDescription>
+                Enter your current glucose reading and describe your meal or exercise
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="current_glucose_mgdl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Current Glucose (mg/dL)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="e.g., 120"
+                            {...field}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Your current blood glucose reading in mg/dL
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="raw_meal_exercise_text"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Meal or Exercise Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g., Ate a large pizza with 2 slices, going for a 30-minute walk"
+                            className="min-h-[100px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Describe what you ate or any exercise you plan to do
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {mutation.isError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>
+                        {mutation.error instanceof Error
+                          ? mutation.error.message
+                          : 'Failed to get prediction. Please try again.'}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <Button type="submit" disabled={mutation.isPending} className="w-full">
+                    {mutation.isPending ? 'Predicting...' : 'Get Prediction'}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+
+          {/* Results Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Latest Prediction</CardTitle>
+              <CardDescription>Your most recent blood sugar prediction result</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {lastPrediction ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Predicted Glucose</p>
+                      <p className="text-4xl font-bold">
+                        {lastPrediction.result.predicted_glucose_mgdl.toFixed(1)} mg/dL
+                      </p>
+                    </div>
+                    <Badge
+                      variant={getRiskBadgeVariant(lastPrediction.result.risk_label)}
+                      className={`${getRiskBadgeColor(lastPrediction.result.risk_label)} text-white`}
+                    >
+                      {lastPrediction.result.risk_label}
+                    </Badge>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <p className="text-sm font-medium mb-2">Current Glucose</p>
+                    <p className="text-2xl font-semibold">
+                      {lastPrediction.input.current_glucose_mgdl} mg/dL
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <p className="text-sm font-medium mb-2">Explanation</p>
+                    <p className="text-sm text-muted-foreground">
+                      {lastPrediction.result.explanation}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(lastPrediction.timestamp), 'PPpp')}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No predictions yet</p>
+                  <p className="text-sm mt-2">Submit a prediction to see results here</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </section>
+
+        {/* History Chart Section */}
+        {predictionHistory.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Prediction History</CardTitle>
+              <CardDescription>
+                Track your current and predicted glucose levels over time
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={chartConfig} className="h-[400px] w-full">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="timestamp"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    label={{
+                      value: 'Glucose (mg/dL)',
+                      angle: -90,
+                      position: 'insideLeft',
+                      style: { fill: 'hsl(var(--muted-foreground))' },
+                    }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <ReferenceLine
+                    y={70}
+                    stroke="#ef4444"
+                    strokeDasharray="3 3"
+                    label={{ value: 'Hypo Threshold', position: 'right' }}
+                  />
+                  <ReferenceLine
+                    y={180}
+                    stroke="#ef4444"
+                    strokeDasharray="3 3"
+                    label={{ value: 'Hyper Threshold', position: 'right' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="current"
+                    stroke="hsl(var(--chart-1))"
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    name="current"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="predicted"
+                    stroke="hsl(var(--chart-2))"
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    name="predicted"
+                  />
+                </LineChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }

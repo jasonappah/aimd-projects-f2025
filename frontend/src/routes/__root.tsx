@@ -42,7 +42,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Header />
         <QueryClientProvider client={queryClient}>
           {children}
         </QueryClientProvider>
