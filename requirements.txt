@@ -8,6 +8,7 @@ fastapi>=0.100.0
 uvicorn[standard]>=0.20.0
 google-genai
 pydantic>=2.0.0
+twilio
 # Your existing ML deps
 torch>=2.0.0
 numpy>=1.24.0
