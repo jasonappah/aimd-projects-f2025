@@ -1,6 +1,12 @@
 import sys
 import os
+import traceback  # Import traceback to print full error details
 from dotenv import load_dotenv
+
+# 1. Load Environment Variables FIRST
+# CRITICAL FIX: This must run BEFORE importing src modules so the Gemini Client 
+# can find the API Key when it initializes at import time.
+load_dotenv()
 
 # --- CRITICAL FIX: Add project root to Python Path ---
 # This allows 'from src.llm...' imports to work
@@ -13,9 +19,6 @@ except ImportError as e:
     print(f"CRITICAL ERROR: Could not import project modules. {e}")
     print("Ensure you are running this script from the project root directory.")
     sys.exit(1)
-
-# 1. Load Environment Variables
-load_dotenv()
 
 def test_llm_connection():
     print("\n--- Testing LLM Feature Extraction ---")
@@ -34,7 +37,11 @@ def test_llm_connection():
         print(features.model_dump_json(indent=2))
         return True
     except Exception as e:
-        print(f"FAILURE: LLM Extraction failed. Error: {e}")
+        print(f"FAILURE: LLM Extraction failed.")
+        print(f"Error Message: {e}")
+        print("-" * 20)
+        traceback.print_exc()  # Print the full stack trace
+        print("-" * 20)
         return False
 
 def test_twilio_connection():
