@@ -27,10 +27,8 @@ def trigger_emergency_call(predicted_glucose: float, caretaker_number: str, user
 
     # TwiML message requesting an immediate prick test and action
     message = (
-        f"This is a critical blood sugar alert for {user_name}. "
-        f"The system predicts an extreme glucose reading of {predicted_glucose:.1f} mg/dL in three hours. "
+        f"This is a critical blood sugar alert for {user_name} and glucose reading of {predicted_glucose:.1f} mg/dL "
         "Please perform an immediate finger prick test "
-        "and take necessary corrective action. The prediction is dangerously low or high."
     )
     twiml_response = f"<Response><Say>{message}</Say></Response>"
 
