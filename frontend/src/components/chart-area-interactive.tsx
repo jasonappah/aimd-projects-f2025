@@ -80,7 +80,7 @@ export function ChartAreaInteractive({ predictionHistory }: ChartAreaInteractive
 
   const chartConfig = {
     current: {
-      label: "Current Glucose",
+      label: "This Morning's Glucose Reading",
       color: "hsl(var(--chart-1))",
     },
     predicted: {

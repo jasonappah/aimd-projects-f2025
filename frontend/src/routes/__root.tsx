@@ -5,6 +5,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import appCss from '../styles.css?url'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from 'next-themes'
+import { Toaster } from '@/components/ui/sonner'
 
 /*
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,6 +64,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <QueryClientProvider client={queryClient}>
             {children}
           </QueryClientProvider>
+          <Toaster />
         </ThemeProvider>
         <TanStackDevtools
           config={{

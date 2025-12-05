@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +20,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { predictGlucosePredictPostMutation } from '@/client/@tanstack/react-query.gen'
-import { savePredictionEntry, getPredictionEntries } from '@/lib/storage'
+import { savePredictionEntry } from '@/lib/storage'
 
 // Form validation schema
 const predictionFormSchema = z.object({
@@ -46,7 +47,7 @@ export function PredictionForm({ onSuccess }: PredictionFormProps) {
   const form = useForm<PredictionFormValues>({
     resolver: zodResolver(predictionFormSchema),
     defaultValues: {
-      current_glucose_mgdl: 200,
+      current_glucose_mgdl: 139.2,
       raw_meal_exercise_text: '',
     },
   })
@@ -62,6 +63,18 @@ export function PredictionForm({ onSuccess }: PredictionFormProps) {
         current_glucose_mgdl: undefined,
         raw_meal_exercise_text: '',
       })
+      // Show toast notification
+      const riskLabel = data.risk_label.toLowerCase()
+      const isCritical = riskLabel === 'hypo' || riskLabel === 'hyper'
+      const toastType = isCritical ? 'warning' : 'success'
+      
+      toast[toastType](
+        `Prediction Complete: ${data.predicted_glucose_mgdl.toFixed(1)} mg/dL`,
+        {
+          description: `Risk Level: ${data.risk_label}${isCritical ? ' - Please take action' : ''}`,
+          duration: isCritical ? 6000 : 4000,
+        }
+      )
       // Call success callback if provided
       if (onSuccess) {
         onSuccess()

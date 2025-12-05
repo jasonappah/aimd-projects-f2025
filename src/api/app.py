@@ -32,7 +32,7 @@ app.add_middleware(
 )
 
 # Constants for Critical Alert Thresholds (representing the >75% risk level)
-CRITICAL_HYPO_THRESHOLD = 50.0  # Below 50 mg/dL: requires immediate attention
+CRITICAL_HYPO_THRESHOLD = 80.0  # Below 50 mg/dL: requires immediate attention
 CRITICAL_HYPER_THRESHOLD = 300.0 # Above 300 mg/dL: requires immediate attention
 
 # Load environment variables (runs once at startup)
@@ -255,6 +255,8 @@ def predict_glucose(input_data: RawInput):
         prediction = input_data.current_glucose_mgdl + (extracted_features.carbs * 0.5) 
         
     predicted_glucose = float(prediction)
+
+    print(f"Predicted Glucose: {predicted_glucose}")
     
     # 4. Risk Classification (Phase 3)
     risk_label, explanation = run_risk_classifier(predicted_glucose)
@@ -265,7 +267,7 @@ def predict_glucose(input_data: RawInput):
         
         if CARETAKER_NUMBER:
             # Trigger the call with the predicted value
-            trigger_emergency_call(predicted_glucose, CARETAKER_NUMBER)
+            trigger_emergency_call(predicted_glucose, CARETAKER_NUMBER, user_name="Mudit Upadhyay")
             explanation += " CRITICAL ALERT: Emergency call initiated to caretaker."
         else:
             print("ALERT: TWILIO_CARETAKER_NUMBER not set. Emergency call skipped.")

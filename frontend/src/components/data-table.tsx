@@ -121,7 +121,7 @@ function PredictionDetailViewer({ entry, getRiskBadgeVariant, getRiskBadgeColor 
           <div className="grid gap-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-muted-foreground">Current Glucose</Label>
+                <Label className="text-muted-foreground">This Morning's Glucose Reading</Label>
                 <p className="text-2xl font-semibold">
                   {entry.input.current_glucose_mgdl} mg/dL
                 </p>

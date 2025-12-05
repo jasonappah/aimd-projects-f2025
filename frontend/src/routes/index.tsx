@@ -121,7 +121,7 @@ function App() {
                         </div>
 
                         <div className="pt-4 border-t">
-                          <p className="text-sm font-medium mb-2">Current Glucose</p>
+                          <p className="text-sm font-medium mb-2">This Morning's Glucose Reading</p>
                           <p className="text-2xl font-semibold">
                             {lastPrediction.input.current_glucose_mgdl} mg/dL
                           </p>
