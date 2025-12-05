@@ -63,7 +63,7 @@ def test_twilio_connection():
     
     try:
         # Trigger call with a mock critical value
-        trigger_emergency_call(45.0, caretaker_number, user_name="Integration Test User")
+        trigger_emergency_call(45.0, caretaker_number, user_name="Mudit Upadhyay")
         print("SUCCESS: Twilio call logic executed (Check if phone rings!)")
         return True
     except Exception as e:
