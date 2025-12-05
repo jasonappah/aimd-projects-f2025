@@ -46,7 +46,7 @@ export function PredictionForm({ onSuccess }: PredictionFormProps) {
   const form = useForm<PredictionFormValues>({
     resolver: zodResolver(predictionFormSchema),
     defaultValues: {
-      current_glucose_mgdl: undefined,
+      current_glucose_mgdl: 200,
       raw_meal_exercise_text: '',
     },
   })
@@ -94,7 +94,7 @@ export function PredictionForm({ onSuccess }: PredictionFormProps) {
               name="current_glucose_mgdl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Current Glucose (mg/dL)</FormLabel>
+                  <FormLabel>This Morning's Glucose Reading (mg/dL)</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
